@@ -13,18 +13,15 @@ use teloxide::types::ChatId;
 use crate::structs;
 
 pub async fn api_init() -> Sheets<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>> {
-    let secret = oauth2::read_application_secret("credential.json")
+    let secret = oauth2::read_service_account_key("service-account.json")
         .await
         .expect("credential not read");
 
-    let auth = oauth2::InstalledFlowAuthenticator::builder(
-        secret,
-        oauth2::InstalledFlowReturnMethod::HTTPRedirect,
-    )
-    .persist_tokens_to_disk("tokencache.json")
-    .build()
-    .await
-    .unwrap();
+    let auth = oauth2::ServiceAccountAuthenticator::builder(secret)
+        .persist_tokens_to_disk("tokencache.json")
+        .build()
+        .await
+        .unwrap();
 
     let hub = Sheets::new(
         hyper::Client::builder().build(
@@ -323,10 +320,11 @@ pub async fn check_sheet_id(
     hub: &Sheets<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>,
 ) -> bool {
     let key: &str = sheet_id.split("/").nth(5).unwrap();
-    let result = hub.spreadsheets().get(&sheet_id).doit().await;
+    let result = hub.spreadsheets().get(key).doit().await;
     if result.is_ok() {
         return true;
     } else {
+        dbg!(result);
         return false;
     }
 }

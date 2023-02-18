@@ -249,6 +249,7 @@ async fn pagamento_category(
     q: CallbackQuery,
 ) -> HandlerResult {
     if let Some(category) = &q.data {
+        bot.answer_callback_query(q.id).await?;
         p_data.category = category.to_string();
         let wallet_sheet = sheet_api::get_wallets(&sheet_data.sheet, &sheet_data.sheet_id).await;
         let wallets = wallet_sheet
@@ -273,6 +274,7 @@ async fn pagamento_wallet(
     q: CallbackQuery,
 ) -> HandlerResult {
     if let Some(wallet) = &q.data {
+        bot.answer_callback_query(q.id).await?;
         p_data.wallet = wallet.to_string();
         bot.send_message(dialogue.chat_id(), "note aggiuntive")
             .await?;
