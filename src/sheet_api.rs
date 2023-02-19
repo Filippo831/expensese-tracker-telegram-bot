@@ -2,15 +2,26 @@ use chrono::Datelike;
 use chrono::Local;
 use google_sheets4::oauth2;
 use google_sheets4::Sheets;
-use google_sheets4::{
-    api::{DimensionGroup, ValueRange},
-    hyper, hyper_rustls, Error,
-};
-use serde_json;
+use google_sheets4::{api::ValueRange, hyper, hyper_rustls, Error};
 use std::fs;
 use teloxide::types::ChatId;
 
 use crate::structs;
+
+static MONTHS: [&str; 12] = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+];
 
 pub async fn api_init() -> Sheets<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>> {
     let secret = oauth2::read_service_account_key("service-account.json")
@@ -34,6 +45,7 @@ pub async fn api_init() -> Sheets<hyper_rustls::HttpsConnector<hyper::client::Ht
         ),
         auth,
     );
+
     return hub;
 }
 
@@ -41,24 +53,9 @@ pub async fn get_pagamenti_empty_cell(
     hub: &Sheets<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>,
     sheet_id: &str,
 ) -> u32 {
-    let months = [
-        "January",
-        "February",
-        "March",
-        "April",
-        "May",
-        "June",
-        "July",
-        "August",
-        "September",
-        "October",
-        "November",
-        "December",
-    ];
-
     let month_number = Local::now().month0() as usize;
 
-    let range = format!("{}!B4:B1000", months[month_number]);
+    let range = format!("{}!B4:B1000", MONTHS[month_number]);
 
     let response = hub
         .spreadsheets()
@@ -76,11 +73,11 @@ pub async fn get_pagamenti_empty_cell(
         }
     };
 
-    if values.values == None {
+    if values.values.is_none() {
         return 4;
     }
 
-    return 4 + values.values.unwrap().iter().nth(0).unwrap().len() as u32;
+    return 4 + values.values.unwrap().get(0).unwrap().len() as u32;
 }
 
 pub async fn get_categories(
@@ -91,7 +88,7 @@ pub async fn get_categories(
 
     let response = hub
         .spreadsheets()
-        .values_get(sheet_id, &range)
+        .values_get(sheet_id, range)
         .value_render_option("UNFORMATTED_VALUE")
         .major_dimension("COLUMNS")
         .doit()
@@ -104,7 +101,7 @@ pub async fn get_categories(
             return None.unwrap();
         }
     };
-    return values.values.unwrap().iter().nth(0).unwrap().to_vec();
+    return values.values.unwrap().get(0).unwrap().to_vec();
 }
 
 pub async fn get_wallets(
@@ -115,7 +112,7 @@ pub async fn get_wallets(
 
     let response = hub
         .spreadsheets()
-        .values_get(sheet_id, &range)
+        .values_get(sheet_id, range)
         .value_render_option("UNFORMATTED_VALUE")
         .major_dimension("COLUMNS")
         .doit()
@@ -128,7 +125,7 @@ pub async fn get_wallets(
             return None.unwrap();
         }
     };
-    return values.values.unwrap().iter().nth(0).unwrap().to_vec();
+    return values.values.unwrap().get(0).unwrap().to_vec();
 }
 
 pub async fn write_pagamento_data(
@@ -136,26 +133,11 @@ pub async fn write_pagamento_data(
     sheet_id: &str,
     data: Box<structs::PagamentoStruct>,
 ) {
-    let months = [
-        "January",
-        "February",
-        "March",
-        "April",
-        "May",
-        "June",
-        "July",
-        "August",
-        "September",
-        "October",
-        "November",
-        "December",
-    ];
-
     let row = get_pagamenti_empty_cell(hub, sheet_id).await.to_string();
 
     let month_number = Local::now().month0() as usize;
 
-    let range = format!("{}!B{}:G{}", months[month_number], row, row);
+    let range = format!("{}!B{}:G{}", MONTHS[month_number], row, row);
 
     let values_vector = vec![vec![
         data.title,
@@ -200,24 +182,9 @@ pub async fn get_guadagni_empty_cell(
     hub: &Sheets<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>,
     sheet_id: &str,
 ) -> u32 {
-    let months = [
-        "January",
-        "February",
-        "March",
-        "April",
-        "May",
-        "June",
-        "July",
-        "August",
-        "September",
-        "October",
-        "November",
-        "December",
-    ];
-
     let month_number = Local::now().month0() as usize;
 
-    let range = format!("{}!I4:I1000", months[month_number]);
+    let range = format!("{}!I4:I1000", MONTHS[month_number]);
 
     let response = hub
         .spreadsheets()
@@ -235,11 +202,11 @@ pub async fn get_guadagni_empty_cell(
         }
     };
 
-    if values.values == None {
+    if values.values.is_none() {
         return 4;
     }
 
-    return 4 + values.values.unwrap().iter().nth(0).unwrap().len() as u32;
+    return 4 + values.values.unwrap().get(0).unwrap().len() as u32;
 }
 
 pub async fn write_guadagno_data(
@@ -247,26 +214,11 @@ pub async fn write_guadagno_data(
     sheet_id: &str,
     data: Box<structs::GuadagnoStruct>,
 ) {
-    let months = [
-        "January",
-        "February",
-        "March",
-        "April",
-        "May",
-        "June",
-        "July",
-        "August",
-        "September",
-        "October",
-        "November",
-        "December",
-    ];
-
     let row = get_guadagni_empty_cell(hub, sheet_id).await.to_string();
 
     let month_number = Local::now().month0() as usize;
 
-    let range = format!("{}!I{}:K{}", months[month_number], row, row);
+    let range = format!("{}!I{}:K{}", MONTHS[month_number], row, row);
 
     let values_vector = vec![vec![
         data.title,
@@ -308,7 +260,7 @@ pub fn write_sheet_id(sheet_id: String, chat_id: ChatId) {
     let file_data = fs::read_to_string("user_data.json").unwrap();
     let mut json_data: serde_json::Value = serde_json::from_str(&file_data).unwrap();
 
-    let key: &str = sheet_id.split("/").nth(5).unwrap();
+    let key: &str = sheet_id.split('/').nth(5).unwrap();
 
     json_data[chat_id.to_string()] = serde_json::json!(key);
 
@@ -319,19 +271,14 @@ pub async fn check_sheet_id(
     sheet_id: String,
     hub: &Sheets<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>,
 ) -> bool {
-    let key: &str = sheet_id.split("/").nth(5).unwrap();
+    let key: &str = sheet_id.split('/').nth(5).unwrap();
     let result = hub.spreadsheets().get(key).doit().await;
-    if result.is_ok() {
-        return true;
-    } else {
-        dbg!(result);
-        return false;
-    }
+    return result.is_ok();
 }
 
 pub fn get_sheet_id(chat_id: ChatId) -> String {
     let file_data = fs::read_to_string("user_data.json").unwrap();
-    let mut json_data: serde_json::Value = serde_json::from_str(&file_data).unwrap();
+    let json_data: serde_json::Value = serde_json::from_str(&file_data).unwrap();
     if let Some(sheet_id) = json_data.get(chat_id.to_string()) {
         if let Some(sheet_id_string) = sheet_id.as_str() {
             return sheet_id_string.to_string();

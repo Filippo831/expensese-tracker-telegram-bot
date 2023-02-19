@@ -30,6 +30,12 @@ impl PagamentoStruct {
         }
     }
 }
+impl Default for PagamentoStruct {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GuadagnoStruct {
     pub fn new() -> Self {
         Self {
@@ -37,6 +43,11 @@ impl GuadagnoStruct {
             amount: 0.0,
             date: 0,
         }
+    }
+}
+impl Default for GuadagnoStruct {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
