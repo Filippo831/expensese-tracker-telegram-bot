@@ -49,13 +49,14 @@ pub async fn api_init() -> Sheets<hyper_rustls::HttpsConnector<hyper::client::Ht
     return hub;
 }
 
-pub async fn get_pagamenti_empty_cell(
+async fn get_empty_cell(
     hub: &Sheets<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>,
     sheet_id: &str,
+    cell_range: &str,
 ) -> u32 {
     let month_number = Local::now().month0() as usize;
 
-    let range = format!("{}!B4:B1000", MONTHS[month_number]);
+    let range = format!("{}!{}", MONTHS[month_number], cell_range);
 
     let response = hub
         .spreadsheets()
@@ -80,12 +81,27 @@ pub async fn get_pagamenti_empty_cell(
     return 4 + values.values.unwrap().get(0).unwrap().len() as u32;
 }
 
-pub async fn get_categories(
+pub async fn get_pagamenti_empty_cell(
     hub: &Sheets<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>,
     sheet_id: &str,
-) -> Vec<String> {
-    let range = "Categories!B4:B20";
+) -> u32 {
+    let range: &str = "B4:B1000";
+    return get_empty_cell(hub, sheet_id, range).await;
+}
 
+pub async fn get_guadagni_empty_cell(
+    hub: &Sheets<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>,
+    sheet_id: &str,
+) -> u32 {
+    let range: &str = "I4:I1000";
+    return get_empty_cell(hub, sheet_id, range).await;
+}
+
+async fn get_list(
+    hub: &Sheets<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>,
+    sheet_id: &str,
+    range: &str,
+) -> Vec<String> {
     let response = hub
         .spreadsheets()
         .values_get(sheet_id, range)
@@ -102,6 +118,14 @@ pub async fn get_categories(
         }
     };
     return values.values.unwrap().get(0).unwrap().to_vec();
+}
+
+pub async fn get_categories(
+    hub: &Sheets<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>,
+    sheet_id: &str,
+) -> Vec<String> {
+    let range = "Categories!B4:B20";
+    return get_list(hub, sheet_id, range).await;
 }
 
 pub async fn get_wallets(
@@ -109,23 +133,50 @@ pub async fn get_wallets(
     sheet_id: &str,
 ) -> Vec<String> {
     let range = "Categories!G4:G20";
+    return get_list(hub, sheet_id, range).await;
+}
+
+async fn write_data(
+    hub: &Sheets<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>,
+    sheet_id: &str,
+    values_vector: Vec<Vec<String>>,
+    begin: &str,
+    end: &str,
+    row: String,
+) {
+    let month_number = Local::now().month0() as usize;
+
+    let range = format!("{}!{}{}:{}{}", MONTHS[month_number], begin, row, end, row);
+
+    let values = ValueRange {
+        values: Some(values_vector),
+        ..Default::default()
+    };
 
     let response = hub
         .spreadsheets()
-        .values_get(sheet_id, range)
-        .value_render_option("UNFORMATTED_VALUE")
-        .major_dimension("COLUMNS")
+        .values_update(values, sheet_id, &range)
+        .value_input_option("USER_ENTERED")
         .doit()
         .await;
 
-    let values = match response {
-        Ok((_response, values)) => values,
-        Err(error) => {
-            println!("Error getting values: {}", error);
-            return None.unwrap();
-        }
-    };
-    return values.values.unwrap().get(0).unwrap().to_vec();
+    match response {
+        Err(e) => match e {
+            // The Error enum provides details about what exactly happened.
+            // You can also just use its `Debug`, `Display` or `Error` traits
+            Error::HttpError(_)
+            | Error::Io(_)
+            | Error::MissingAPIKey
+            | Error::MissingToken(_)
+            | Error::Cancelled
+            | Error::UploadSizeLimitExceeded(_, _)
+            | Error::Failure(_)
+            | Error::BadRequest(_)
+            | Error::FieldClash(_)
+            | Error::JsonDecodeError(_, _) => println!("{}", e),
+        },
+        Ok(res) => println!("Success {:?}", res),
+    }
 }
 
 pub async fn write_pagamento_data(
@@ -133,11 +184,10 @@ pub async fn write_pagamento_data(
     sheet_id: &str,
     data: Box<structs::PagamentoStruct>,
 ) {
+    let begin = "B";
+    let end = "G";
+
     let row = get_pagamenti_empty_cell(hub, sheet_id).await.to_string();
-
-    let month_number = Local::now().month0() as usize;
-
-    let range = format!("{}!B{}:G{}", MONTHS[month_number], row, row);
 
     let values_vector = vec![vec![
         data.title,
@@ -148,65 +198,7 @@ pub async fn write_pagamento_data(
         data.notes,
     ]];
 
-    let values = ValueRange {
-        values: Some(values_vector),
-        ..Default::default()
-    };
-
-    let response = hub
-        .spreadsheets()
-        .values_update(values, sheet_id, &range)
-        .value_input_option("USER_ENTERED")
-        .doit()
-        .await;
-
-    match response {
-        Err(e) => match e {
-            // The Error enum provides details about what exactly happened.
-            // You can also just use its `Debug`, `Display` or `Error` traits
-            Error::HttpError(_)
-            | Error::Io(_)
-            | Error::MissingAPIKey
-            | Error::MissingToken(_)
-            | Error::Cancelled
-            | Error::UploadSizeLimitExceeded(_, _)
-            | Error::Failure(_)
-            | Error::BadRequest(_)
-            | Error::FieldClash(_)
-            | Error::JsonDecodeError(_, _) => println!("{}", e),
-        },
-        Ok(res) => println!("Success {:?}", res),
-    }
-}
-pub async fn get_guadagni_empty_cell(
-    hub: &Sheets<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>,
-    sheet_id: &str,
-) -> u32 {
-    let month_number = Local::now().month0() as usize;
-
-    let range = format!("{}!I4:I1000", MONTHS[month_number]);
-
-    let response = hub
-        .spreadsheets()
-        .values_get(sheet_id, &range)
-        .value_render_option("UNFORMATTED_VALUE")
-        .major_dimension("COLUMNS")
-        .doit()
-        .await;
-
-    let values = match response {
-        Ok((_response, values)) => values,
-        Err(error) => {
-            println!("Error getting values: {}", error);
-            return None.unwrap();
-        }
-    };
-
-    if values.values.is_none() {
-        return 4;
-    }
-
-    return 4 + values.values.unwrap().get(0).unwrap().len() as u32;
+    write_data(hub, sheet_id, values_vector, begin, end, row).await;
 }
 
 pub async fn write_guadagno_data(
@@ -214,11 +206,10 @@ pub async fn write_guadagno_data(
     sheet_id: &str,
     data: Box<structs::GuadagnoStruct>,
 ) {
+    let begin = "I";
+    let end = "K";
+
     let row = get_guadagni_empty_cell(hub, sheet_id).await.to_string();
-
-    let month_number = Local::now().month0() as usize;
-
-    let range = format!("{}!I{}:K{}", MONTHS[month_number], row, row);
 
     let values_vector = vec![vec![
         data.title,
@@ -226,36 +217,9 @@ pub async fn write_guadagno_data(
         data.date.to_string(),
     ]];
 
-    let values = ValueRange {
-        values: Some(values_vector),
-        ..Default::default()
-    };
-
-    let response = hub
-        .spreadsheets()
-        .values_update(values, sheet_id, &range)
-        .value_input_option("USER_ENTERED")
-        .doit()
-        .await;
-
-    match response {
-        Err(e) => match e {
-            // The Error enum provides details about what exactly happened.
-            // You can also just use its `Debug`, `Display` or `Error` traits
-            Error::HttpError(_)
-            | Error::Io(_)
-            | Error::MissingAPIKey
-            | Error::MissingToken(_)
-            | Error::Cancelled
-            | Error::UploadSizeLimitExceeded(_, _)
-            | Error::Failure(_)
-            | Error::BadRequest(_)
-            | Error::FieldClash(_)
-            | Error::JsonDecodeError(_, _) => println!("{}", e),
-        },
-        Ok(res) => println!("Success {:?}", res),
-    }
+    write_data(hub, sheet_id, values_vector, begin, end, row).await;
 }
+
 pub fn write_sheet_id(sheet_id: String, chat_id: ChatId) {
     let file_data = fs::read_to_string("user_data.json").unwrap();
     let mut json_data: serde_json::Value = serde_json::from_str(&file_data).unwrap();
